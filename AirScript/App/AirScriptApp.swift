@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct AirScriptApp: App {
+    @NSApplicationDelegateAdaptor(AirScriptAppDelegate.self) private var appDelegate
     @State private var board = CaptionBoardViewModel()
     @State private var settings = AppSettings()
 
@@ -10,7 +11,7 @@ struct AirScriptApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        Window("AirScript", id: "main") {
             ContentView()
                 .environment(board)
                 .environment(settings)
@@ -23,6 +24,7 @@ struct AirScriptApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 720, height: 480)
+        .defaultLaunchBehavior(.suppressed)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("Captions") {
@@ -59,6 +61,10 @@ struct AirScriptApp: App {
 
         MenuBarExtra {
             CaptionMenuBarExtra(board: board)
+                .onAppear {
+                    if !board.isRunning { board.start() }
+                    ScreenCaptureStealth.noteReady(enabled: settings.hideFromScreenCapture)
+                }
         } label: {
             MenuBarIcon()
         }
