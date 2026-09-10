@@ -7,10 +7,10 @@ final class CaptionBoardViewModel {
     private(set) var status: LiveCaptionStatus = .needsAccessibility
     private(set) var isRunning = false
 
-    private var assembler = CaptionLineAssembler()
-    private let client = LiveCaptionAXClient()
-    private var statusTimer: Timer?
-    private var hotkeys: NumpadHotkeyMonitor?
+    @ObservationIgnored private var assembler = CaptionLineAssembler()
+    @ObservationIgnored private let client = LiveCaptionAXClient()
+    @ObservationIgnored private var statusTimer: Timer?
+    @ObservationIgnored private var hotkeys: NumpadHotkeyMonitor?
 
     func start() {
         isRunning = true

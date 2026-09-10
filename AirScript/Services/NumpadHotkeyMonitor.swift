@@ -34,7 +34,7 @@ final class NumpadHotkeyMonitor {
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
-            callback: numpadTapCallback,
+            callback: Self.eventCallback,
             userInfo: pointer
         ) else { return }
 
@@ -55,6 +55,14 @@ final class NumpadHotkeyMonitor {
         tap = nil
         runLoopSource = nil
         lastDecimalAt = nil
+    }
+
+    private static let eventCallback: CGEventTapCallBack = { _, type, event, refcon in
+        guard let refcon else {
+            return Unmanaged.passUnretained(event)
+        }
+        let monitor = Unmanaged<NumpadHotkeyMonitor>.fromOpaque(refcon).takeUnretainedValue()
+        return monitor.handle(type: type, event: event)
     }
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -117,17 +125,4 @@ final class NumpadHotkeyMonitor {
     private static func isKeypad(_ keyCode: CGKeyCode) -> Bool {
         keyCode == decimal || digits[keyCode] != nil
     }
-}
-
-private func numpadTapCallback(
-    proxy _: CGEventTapProxy,
-    type: CGEventType,
-    event: CGEvent,
-    refcon: UnsafeMutableRawPointer?
-) -> Unmanaged<CGEvent>? {
-    guard let refcon else {
-        return Unmanaged.passUnretained(event)
-    }
-    let monitor = Unmanaged<NumpadHotkeyMonitor>.fromOpaque(refcon).takeUnretainedValue()
-    return monitor.handle(type: type, event: event)
 }
