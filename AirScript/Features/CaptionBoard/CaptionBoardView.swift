@@ -54,30 +54,44 @@ struct CaptionBoardView: View {
     private var captionList: some View {
         ScrollViewReader { proxy in
             List {
-                ForEach(board.lines) { line in
-                    CaptionLineRow(line: line)
-                        .id(line.id)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(
-                            top: DS.Spacing.xs,
-                            leading: DS.Spacing.md,
-                            bottom: DS.Spacing.xs,
-                            trailing: DS.Spacing.md
-                        ))
+                ForEach(board.committedLines) { line in
+                    captionRow(line)
+                }
+                if let live = board.liveLine {
+                    captionRow(live)
                 }
             }
             .listStyle(.inset)
             .scrollContentBackground(.hidden)
-            .onChange(of: board.lines.last?.id) { _, id in
-                guard let id else { return }
-                proxy.scrollTo(id, anchor: .bottom)
+            .onChange(of: board.liveLine?.id) { _, _ in
+                scrollToLatest(proxy)
             }
-            .onChange(of: board.lines.last?.text) { _, _ in
-                if let id = board.lines.last?.id {
-                    proxy.scrollTo(id, anchor: .bottom)
-                }
+            .onChange(of: board.liveLine?.text) { _, _ in
+                scrollToLatest(proxy)
             }
+            .onChange(of: board.committedLines.last?.id) { _, _ in
+                scrollToLatest(proxy)
+            }
+        }
+    }
+
+    private func captionRow(_ line: CaptionLine) -> some View {
+        CaptionLineRow(line: line)
+            .equatable()
+            .id(line.id)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(
+                top: DS.Spacing.xs,
+                leading: DS.Spacing.md,
+                bottom: DS.Spacing.xs,
+                trailing: DS.Spacing.md
+            ))
+    }
+
+    private func scrollToLatest(_ proxy: ScrollViewProxy) {
+        if let id = board.liveLine?.id ?? board.committedLines.last?.id {
+            proxy.scrollTo(id, anchor: .bottom)
         }
     }
 

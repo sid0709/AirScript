@@ -27,7 +27,6 @@ final class NumpadHotkeyMonitor {
         guard tap == nil, AccessibilityTrust.isTrusted else { return }
 
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
-            | CGEventMask(1 << CGEventType.keyUp.rawValue)
         let pointer = Unmanaged.passUnretained(self).toOpaque()
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,

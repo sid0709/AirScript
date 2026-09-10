@@ -1,101 +1,245 @@
-import AppKit
 import ApplicationServices
 import Foundation
 
-/// Polls macOS Live Captions through the Accessibility API.
-final class LiveCaptionAXClient {
-    private var timer: Timer?
+/// Reads macOS Live Captions through the Accessibility API on a dedicated thread.
+/// Uses AXObserver + cached nodes, with an adaptive poll as a reliability fallback.
+nonisolated final class LiveCaptionAXClient: @unchecked Sendable {
+    private let ax = LiveCaptionAXRunLoop()
+    private let reader = LiveCaptionAXReader()
+    private let processMonitor = LiveCaptionsProcessMonitor()
+    private var cadence = CaptionPollCadence()
+    private var pollTimer: CFRunLoopTimer?
+    private var observer: AXObserver?
+    private var observedPID: pid_t?
+    private var registeredWindowCount = 0
     private var lastText = ""
+    private var generation: UInt64 = 0
+    private let generationLock = NSLock()
+    private var nextPollFullWalk = false
+    private var isPolling = false
+    private var pollQueued = false
     private var onText: ((String) -> Void)?
+    var onRunningChange: (() -> Void)?
+
+    deinit {
+        stop()
+    }
+
+    var isProcessRunning: Bool { processMonitor.isRunning }
+
+    static var isLiveCaptionsRunning: Bool {
+        LiveCaptionsProcess.runningApplication() != nil
+    }
 
     func start(onText: @escaping (String) -> Void) {
         stop()
         self.onText = onText
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            self?.poll()
+        bumpGeneration()
+        ax.start()
+        processMonitor.onChange = { [weak self] pid in
+            self?.ax.perform {
+                self?.handleProcessChange(pid)
+            }
+            DispatchQueue.main.async {
+                self?.onRunningChange?()
+            }
         }
-        poll()
+        processMonitor.start()
+        ax.perform { [weak self] in
+            self?.handleProcessChange(self?.processMonitor.pid)
+            self?.runPoll()
+        }
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        bumpGeneration()
         onText = nil
-        lastText = ""
+        onRunningChange = nil
+        processMonitor.stop()
+        ax.performSync { [self] in
+            tearDownObserver()
+            tearDownTimer()
+            reader.invalidate()
+            lastText = ""
+            cadence = CaptionPollCadence()
+            nextPollFullWalk = false
+            isPolling = false
+            pollQueued = false
+        }
+        ax.stop()
     }
 
     /// Treat the current overlay as already seen so a cache clear does not re-ingest it.
     func ignoreCurrentSnapshot() {
-        lastText = Self.readCaptionText()
+        bumpGeneration()
+        ax.performSync { [self] in
+            guard let pid = processMonitor.pid else {
+                lastText = ""
+                return
+            }
+            lastText = reader.snapshot(pid: pid, forceFullWalk: true)
+        }
     }
 
-    static var isLiveCaptionsRunning: Bool {
-        liveCaptionsApp() != nil
+    fileprivate func wakePoll(forceFullWalk: Bool) {
+        if forceFullWalk {
+            nextPollFullWalk = true
+        }
+        cadence.resetToSpeaking()
+        applyTimerInterval()
+        runPoll()
+    }
+
+    private func handleProcessChange(_ pid: pid_t?) {
+        if pid == nil || pid != observedPID {
+            tearDownObserver()
+            reader.invalidate()
+            lastText = ""
+            observedPID = pid
+        }
+        guard pid != nil else {
+            tearDownTimer()
+            return
+        }
+        cadence.resetToSpeaking()
+        installObserverIfNeeded()
+        applyTimerInterval()
+        runPoll()
+    }
+
+    private func runPoll() {
+        if isPolling {
+            pollQueued = true
+            return
+        }
+        isPolling = true
+        poll()
+        isPolling = false
+        if pollQueued {
+            pollQueued = false
+            runPoll()
+        }
     }
 
     private func poll() {
-        let text = Self.readCaptionText()
-        guard !text.isEmpty, text != lastText else { return }
-        lastText = text
-        onText?(text)
-    }
+        guard let pid = processMonitor.pid else { return }
+        let force = nextPollFullWalk
+        nextPollFullWalk = false
+        let text = reader.snapshot(pid: pid, forceFullWalk: force)
+        installObserverIfNeeded()
 
-    private static func liveCaptionsApp() -> NSRunningApplication? {
-        NSWorkspace.shared.runningApplications.first {
-            $0.bundleIdentifier == "com.apple.accessibility.LiveTranscriptionAgent"
-                || $0.localizedName == "Live Captions"
+        let changed = text != lastText
+        if changed {
+            lastText = text
+            cadence.noteChange()
+        } else {
+            cadence.noteUnchanged()
+        }
+        applyTimerInterval()
+        guard changed, !text.isEmpty else { return }
+        let generation = currentGeneration()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.currentGeneration() == generation else { return }
+            self.onText?(text)
         }
     }
 
-    private static func readCaptionText() -> String {
-        guard let pid = liveCaptionsApp()?.processIdentifier else { return "" }
+    private func applyTimerInterval() {
+        let interval = cadence.interval
+        if let pollTimer, abs(CFRunLoopTimerGetInterval(pollTimer) - interval) < 0.001 {
+            return
+        }
+        tearDownTimer()
+        guard let runLoop = ax.cfRunLoop else { return }
+        let timer = CFRunLoopTimerCreateWithHandler(
+            kCFAllocatorDefault,
+            CFAbsoluteTimeGetCurrent() + interval,
+            interval,
+            0,
+            0
+        ) { [weak self] _ in
+            self?.runPoll()
+        }
+        pollTimer = timer
+        CFRunLoopAddTimer(runLoop, timer, .commonModes)
+    }
+
+    private func installObserverIfNeeded() {
+        guard let pid = processMonitor.pid else { return }
+        if observer != nil, observedPID == pid {
+            if reader.observedWindows.count != registeredWindowCount {
+                registerObserverTargets()
+            }
+            return
+        }
+        tearDownObserver()
+        var created: AXObserver?
+        let result = AXObserverCreate(pid, Self.observerCallback, &created)
+        guard result == .success, let observer = created else { return }
+        self.observer = observer
+        observedPID = pid
+        if let runLoop = ax.cfRunLoop {
+            CFRunLoopAddSource(runLoop, AXObserverGetRunLoopSource(observer), .commonModes)
+        }
+        registerObserverTargets()
+    }
+
+    private func registerObserverTargets() {
+        guard let observer, let pid = processMonitor.pid else { return }
+        let refcon = Unmanaged.passUnretained(self).toOpaque()
         let app = AXUIElementCreateApplication(pid)
-        var lines: [String] = []
-        collect(from: app, into: &lines, depth: 0)
-        for window in (attribute(app, kAXWindowsAttribute as String) as? [AXUIElement] ?? []) {
-            collect(from: window, into: &lines, depth: 0)
+        for notification in Self.observerNotifications {
+            AXObserverAddNotification(observer, app, notification as CFString, refcon)
         }
-        return CaptionTextMerge.collapse(lines).joined(separator: "\n")
-    }
-
-    private static func collect(from element: AXUIElement, into lines: inout [String], depth: Int) {
-        guard depth < 12, lines.count < 40 else { return }
-        let role = string(element, kAXRoleAttribute as String) ?? ""
-        if role.contains("Menu") { return }
-
-        if let value = string(element, kAXValueAttribute as String)
-            ?? string(element, kAXDescriptionAttribute as String),
-           !value.isEmpty {
-            for line in value.split(whereSeparator: \.isNewline).map({ $0.trimmingCharacters(in: .whitespaces) })
-            where !line.isEmpty && !CaptionTextMerge.isChrome(line) && !lines.contains(line) {
-                lines.append(line)
+        for window in reader.observedWindows {
+            for notification in Self.observerNotifications {
+                AXObserverAddNotification(observer, window, notification as CFString, refcon)
             }
         }
-
-        for child in children(element) {
-            collect(from: child, into: &lines, depth: depth + 1)
-        }
+        registeredWindowCount = reader.observedWindows.count
     }
 
-    private static func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
-        var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
-            return nil
+    private func tearDownObserver() {
+        if let observer, let runLoop = ax.cfRunLoop {
+            CFRunLoopRemoveSource(runLoop, AXObserverGetRunLoopSource(observer), .commonModes)
         }
-        return value
+        observer = nil
+        observedPID = nil
+        registeredWindowCount = 0
     }
 
-    private static func string(_ element: AXUIElement, _ attribute: String) -> String? {
-        guard let string = self.attribute(element, attribute) as? String else { return nil }
-        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+    private func tearDownTimer() {
+        if let pollTimer {
+            CFRunLoopTimerInvalidate(pollTimer)
+        }
+        pollTimer = nil
     }
 
-    private static func children(_ element: AXUIElement) -> [AXUIElement] {
-        var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success else {
-            return []
-        }
-        return value as? [AXUIElement] ?? []
+    private func bumpGeneration() {
+        generationLock.lock()
+        generation += 1
+        generationLock.unlock()
+    }
+
+    private func currentGeneration() -> UInt64 {
+        generationLock.lock()
+        defer { generationLock.unlock() }
+        return generation
+    }
+
+    private static let observerNotifications = [
+        kAXValueChangedNotification,
+        kAXTitleChangedNotification,
+        kAXUIElementDestroyedNotification,
+        kAXLayoutChangedNotification,
+    ]
+
+    private static let observerCallback: AXObserverCallback = { _, _, notification, refcon in
+        guard let refcon else { return }
+        let client = Unmanaged<LiveCaptionAXClient>.fromOpaque(refcon).takeUnretainedValue()
+        let name = notification as String
+        let forceFull = name == (kAXUIElementDestroyedNotification as String)
+            || name == (kAXLayoutChangedNotification as String)
+        client.wakePoll(forceFullWalk: forceFull)
     }
 }

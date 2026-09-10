@@ -13,9 +13,10 @@ struct CaptionLineAssembler {
         ignoreOverlayHistory = true
     }
 
-    mutating func ingest(_ raw: String) {
+    @discardableResult
+    mutating func ingest(_ raw: String) -> Bool {
         let parts = CaptionTextMerge.collapse(Self.splitLines(raw))
-        guard !parts.isEmpty, parts != lastParts else { return }
+        guard !parts.isEmpty, parts != lastParts else { return false }
 
         let liveText = parts[parts.count - 1]
         let overlayCommitted = Array(parts.dropLast())
@@ -24,7 +25,7 @@ struct CaptionLineAssembler {
             ignoreOverlayHistory = false
             lastParts = parts
             replaceLive(with: liveText)
-            return
+            return true
         }
 
         if let liveIndex = lines.lastIndex(where: \.isLive) {
@@ -36,14 +37,14 @@ struct CaptionLineAssembler {
                     ensureCommitted(line, allowInsert: false)
                 }
                 lastParts = parts
-                return
+                return true
             }
             if let stable = CaptionTextMerge.scrolledOffPrefix(prev: previousLive, current: liveText) {
                 lines[liveIndex].text = stable
                 lines[liveIndex].isLive = false
                 lines.append(CaptionLine(text: liveText, isLive: true))
                 lastParts = parts
-                return
+                return true
             }
             commitLiveIfNeeded()
             for line in overlayCommitted {
@@ -51,7 +52,7 @@ struct CaptionLineAssembler {
             }
             replaceLive(with: liveText)
             lastParts = parts
-            return
+            return true
         }
 
         for line in overlayCommitted {
@@ -59,6 +60,7 @@ struct CaptionLineAssembler {
         }
         replaceLive(with: liveText)
         lastParts = parts
+        return true
     }
 
     static func splitLines(_ raw: String) -> [String] {

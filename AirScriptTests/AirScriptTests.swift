@@ -44,9 +44,9 @@ struct CaptionLineAssemblerTests {
 
     @Test func sameSnapshotIsANoOp() {
         var assembler = CaptionLineAssembler()
-        assembler.ingest("Stable")
+        #expect(assembler.ingest("Stable") == true)
         let id = assembler.lines[0].id
-        assembler.ingest("Stable")
+        #expect(assembler.ingest("Stable") == false)
         #expect(assembler.lines[0].id == id)
     }
 
@@ -244,5 +244,44 @@ struct CaptionSentenceGrabTests {
     @Test func keepsTrailingPunctuation() {
         let text = "Are you there? Yes. Wow!"
         #expect(CaptionSentenceGrab.sentences(in: text) == ["Are you there?", "Yes.", "Wow!"])
+    }
+}
+
+struct CaptionPollCadenceTests {
+    @Test func startsAtSpeakingInterval() {
+        let cadence = CaptionPollCadence()
+        #expect(cadence.interval == CaptionPollCadence.speaking)
+        #expect(cadence.isSpeaking)
+    }
+
+    @Test func backsOffAfterUnchangedPolls() {
+        var cadence = CaptionPollCadence()
+        for _ in 0..<CaptionPollCadence.pollsBeforeBackoff {
+            cadence.noteUnchanged()
+        }
+        #expect(cadence.interval == 0.25)
+        #expect(cadence.isSpeaking == false)
+        for _ in 0..<CaptionPollCadence.pollsBeforeBackoff {
+            cadence.noteUnchanged()
+        }
+        #expect(cadence.interval == 0.5)
+        for _ in 0..<CaptionPollCadence.pollsBeforeBackoff {
+            cadence.noteUnchanged()
+        }
+        #expect(cadence.interval == 1.0)
+        cadence.noteUnchanged()
+        cadence.noteUnchanged()
+        cadence.noteUnchanged()
+        #expect(cadence.interval == 1.0)
+    }
+
+    @Test func changeReturnsToSpeaking() {
+        var cadence = CaptionPollCadence()
+        for _ in 0..<CaptionPollCadence.pollsBeforeBackoff {
+            cadence.noteUnchanged()
+        }
+        cadence.noteChange()
+        #expect(cadence.interval == CaptionPollCadence.speaking)
+        #expect(cadence.isSpeaking)
     }
 }

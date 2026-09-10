@@ -4,14 +4,22 @@ import Observation
 
 @Observable
 final class CaptionBoardViewModel {
-    private(set) var lines: [CaptionLine] = []
+    private(set) var committedLines: [CaptionLine] = []
+    private(set) var liveLine: CaptionLine?
     private(set) var status: LiveCaptionStatus = .needsAccessibility
     private(set) var isRunning = false
 
+    var lines: [CaptionLine] {
+        if let liveLine {
+            return committedLines + [liveLine]
+        }
+        return committedLines
+    }
+
     @ObservationIgnored private var assembler = CaptionLineAssembler()
     @ObservationIgnored private let client = LiveCaptionAXClient()
-    @ObservationIgnored private var statusTimer: Timer?
     @ObservationIgnored private var hotkeys: NumpadHotkeyMonitor?
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
 
     func start() {
         isRunning = true
@@ -21,11 +29,12 @@ final class CaptionBoardViewModel {
         client.start { [weak self] text in
             self?.handle(text)
         }
-        ensureHotkeys()
-        refreshStatus()
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        client.onRunningChange = { [weak self] in
             self?.refreshStatus()
         }
+        observeActivation()
+        ensureHotkeys()
+        refreshStatus()
     }
 
     func stop() {
@@ -33,15 +42,15 @@ final class CaptionBoardViewModel {
         client.stop()
         hotkeys?.stop()
         hotkeys = nil
-        statusTimer?.invalidate()
-        statusTimer = nil
+        removeActivationObserver()
         status = .paused
     }
 
     func clear() {
         assembler.reset()
         client.ignoreCurrentSnapshot()
-        lines = []
+        committedLines = []
+        liveLine = nil
     }
 
     func copyAll() {
@@ -95,9 +104,40 @@ final class CaptionBoardViewModel {
     }
 
     private func handle(_ text: String) {
-        assembler.ingest(text)
-        lines = assembler.lines
-        status = .listening
+        guard assembler.ingest(text) else { return }
+        publishLines()
+        if status != .listening {
+            status = .listening
+        }
+    }
+
+    private func publishLines() {
+        let nextCommitted = assembler.lines.filter { !$0.isLive }
+        let nextLive = assembler.lines.last(where: \.isLive)
+        if committedLines != nextCommitted {
+            committedLines = nextCommitted
+        }
+        if liveLine != nextLive {
+            liveLine = nextLive
+        }
+    }
+
+    private func observeActivation() {
+        removeActivationObserver()
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshStatus()
+        }
+    }
+
+    private func removeActivationObserver() {
+        if let activationObserver {
+            NotificationCenter.default.removeObserver(activationObserver)
+        }
+        activationObserver = nil
     }
 
     private func refreshStatus() {
@@ -111,7 +151,7 @@ final class CaptionBoardViewModel {
             return
         }
         ensureHotkeys()
-        if !LiveCaptionAXClient.isLiveCaptionsRunning {
+        if !client.isProcessRunning {
             status = .waitingForLiveCaptions
             return
         }

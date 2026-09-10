@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct CaptionLineRow: View {
+struct CaptionLineRow: View, Equatable {
     let line: CaptionLine
 
     var body: some View {
