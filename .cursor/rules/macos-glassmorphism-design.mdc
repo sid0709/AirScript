@@ -1,0 +1,85 @@
+---
+description: Native macOS glassmorphism design philosophy and tokens for AirScript
+alwaysApply: true
+---
+
+# macOS Glass Design
+
+AirScript should feel like a native macOS app that uses real system glass — not a web-style frosted overlay.
+
+## Philosophy
+
+- **Material over paint.** Backgrounds are `Material` (and `NSVisualEffectView` only if SwiftUI materials are insufficient). Do not fake blur with opacity stacks or bitmap frosts.
+- **Content on glass, not glass on noise.** Keep surfaces quiet. Hierarchy comes from material thickness, spacing, and typography — not heavy shadows or neon borders.
+- **System first.** Semantic colors (`Color.primary`, `.secondary`, `.tertiary`), SF Symbols, San Francisco via SwiftUI text styles. No custom window traffic lights.
+- **Vibrancy.** Foreground must remain legible as the desktop shows through. Prefer `.foregroundStyle(.primary/.secondary)` over hardcoded hex.
+- **Light and dark.** Tokens are semantic so both appearances work. Never assume a dark-only glass look.
+- **Respect Reduce Transparency.** When `accessibilityReduceTransparency` is on, use opaque `Color(nsColor: .windowBackgroundColor)` instead of materials.
+- **Native chrome.** `NavigationSplitView` sidebars, inspectors, toolbars, and continuous corners. Do not reinvent panels that AppKit already provides.
+
+## Tokens
+
+Define these once in `DesignSystem/Tokens.swift` and reference them — never scatter magic numbers.
+
+### Spacing (4 pt grid)
+
+`xxs 4 · xs 8 · sm 12 · md 16 · lg 24 · xl 32 · xxl 48`
+
+### Radius
+
+`control 6 · row 8 · card 12 · panel 16` — always `RoundedRectangle(cornerRadius:style: .continuous)`
+
+### Material
+
+| Role | Token |
+| --- | --- |
+| Overlay / popover | `.ultraThinMaterial` |
+| Card / editor canvas | `.thinMaterial` |
+| Sidebar / inspector | `.regularMaterial` |
+| Dense chrome | `.thickMaterial` |
+
+### Stroke & shadow
+
+- Hairline: `Color.white.opacity(0.18)` (dark) / `Color.black.opacity(0.08)` (light) — use `Color.primary.opacity(0.08)` if you need one semantic stroke.
+- Shadow: `color: .black.opacity(0.12), radius: 12, y: 4` — one soft lift, never stacked drop shadows.
+- Glass fill: material only. Optional inner highlight: 1 pt stroke, not a second fill.
+
+### Type
+
+Use text styles, then weight: `.largeTitle` app hero, `.title2` window/section, `.headline` row title, `.body` content, `.callout` / `.caption` meta. Line length stays readable; do not center large paragraphs.
+
+### Control size
+
+Toolbar and list: `.controlSize(.regular)`. Dense inspectors may use `.small`. Touch-style oversized buttons are not macOS.
+
+## Implementation pattern
+
+```swift
+struct GlassPanel<Content: View>: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    var content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(DS.Spacing.md)
+            .background {
+                if reduceTransparency {
+                    RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous)
+                        .fill(Color(nsColor: .windowBackgroundColor))
+                } else {
+                    RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous)
+                        .fill(.thinMaterial)
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous)
+                    .strokeBorder(.primary.opacity(0.08), lineWidth: 1)
+            }
+    }
+}
+```
+
+## Do / don't
+
+- Do: translucent sidebar, inset grouped lists, vibrancy-aware labels, SF Symbol + title toolbar items.
+- Don't: CSS-like `blur + white 0.2 fill` everywhere, rainbow gradients, 24 pt shadows, iOS-only tab bars as the primary desktop nav, opaque cards that kill the glass.

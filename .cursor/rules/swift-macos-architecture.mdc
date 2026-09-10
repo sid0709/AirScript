@@ -1,0 +1,65 @@
+---
+description: Swift/SwiftUI macOS architecture — modular files, reuse, abstraction
+globs: "**/*.swift"
+alwaysApply: false
+---
+
+# Swift macOS Architecture
+
+Prefer SwiftUI. Reach for AppKit only behind a thin wrapper when SwiftUI cannot do it.
+
+## File & module shape
+
+- One primary type per file. Split a file when it exceeds ~150 lines or mixes concerns.
+- Group by feature, not by layer dumping ground:
+
+```
+AirScript/
+  App/                 # AirScriptApp, scene, app state
+  DesignSystem/        # tokens, materials, shared chrome
+  Features/<Name>/     # Views, ViewModels, feature models
+  Models/              # SwiftData / domain types
+  Services/            # I/O, persistence, system APIs
+  Shared/              # cross-feature components & extensions
+```
+
+- Views compose; they do not own networking, disk, or business rules.
+- Extract a subview, `ViewModifier`, or component the second a block is reused or nested >2 levels.
+- Keep `ContentView` as a shell (tabs/split/navigation). Put screens in feature folders.
+
+## Abstraction & reuse
+
+- Depend on protocols at feature boundaries (`ScriptRunning`, `SettingsStoring`). Inject via init or `@Environment`.
+- Use `@Observable` (or a focused `@Observable` type) for view models — not god objects.
+- SwiftData `@Model` types stay in `Models/`. Views talk to them through queries or a store, not ad-hoc `modelContext` sprinkled everywhere.
+- Shared chrome lives in `DesignSystem/` (glass panels, toolbars, list rows). Feature views must not duplicate materials, radii, or spacing literals.
+- Prefer small pure functions and value types. Classes/`@Model` only for identity or persistence.
+
+## Native macOS UI structure
+
+- Use `WindowGroup`, `Settings`, `MenuBarExtra`, `NavigationSplitView`, `Inspector`, and `commands` instead of custom window chrome.
+- Toolbar actions go in `.toolbar`; do not fake a macOS toolbar with `HStack`.
+- Every public `View` gets a `#Preview` with realistic data (in-memory store when SwiftData is involved).
+
+```swift
+// ❌ BAD — logic, layout, and persistence in one file
+struct ContentView: View {
+    var body: some View {
+        VStack { /* 200 lines of cards, queries, and mutations */ }
+    }
+}
+
+// ✅ GOOD — shell + feature view + injected store
+struct ContentView: View {
+    var body: some View {
+        NavigationSplitView {
+            ScriptListView()
+        } detail: {
+            ScriptEditorView()
+        }
+    }
+}
+```
+
+- Access control: `private` unless another file needs it. No `public` unless it is a module boundary.
+- Name types by role (`GlassPanel`, `ScriptListView`, `ScriptStore`), not `Manager`/`Helper`/`Utils`.
