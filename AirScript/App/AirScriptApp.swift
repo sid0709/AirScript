@@ -3,13 +3,22 @@ import SwiftUI
 @main
 struct AirScriptApp: App {
     @State private var board = CaptionBoardViewModel()
+    @State private var settings = AppSettings()
+
+    init() {
+        ScreenCaptureStealth.start()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(board)
+                .environment(settings)
                 .containerBackground(for: .window) {
                     WindowGlassBackground()
+                }
+                .onAppear {
+                    ScreenCaptureStealth.noteReady(enabled: settings.hideFromScreenCapture)
                 }
         }
         .windowResizability(.contentMinSize)
@@ -41,6 +50,11 @@ struct AirScriptApp: App {
                     board.openLiveCaptionsSettings()
                 }
             }
+        }
+
+        Settings {
+            SettingsView()
+                .environment(settings)
         }
 
         MenuBarExtra {
