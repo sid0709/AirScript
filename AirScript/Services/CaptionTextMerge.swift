@@ -24,9 +24,15 @@ enum CaptionTextMerge {
     }
 
     static func isChrome(_ line: String) -> Bool {
-        switch line.lowercased() {
+        let folded = line
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let stripped = folded.trimmingCharacters(in: .punctuationCharacters.union(.whitespaces))
+        switch stripped {
         case "live caption", "live captions",
-             "live caption running", "live captions running":
+             "live caption running", "live captions running",
+             "microphone off", "microphone on",
+             "mic off", "mic on":
             return true
         default:
             return false

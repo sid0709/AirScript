@@ -99,7 +99,7 @@ struct CaptionLineAssembler {
     }
 
     private mutating func replaceLive(with text: String) {
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty, !CaptionTextMerge.isChrome(text) else { return }
         if let index = lines.lastIndex(where: \.isLive) {
             lines[index].text = text
             return

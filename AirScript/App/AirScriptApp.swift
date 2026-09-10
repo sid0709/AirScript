@@ -42,5 +42,12 @@ struct AirScriptApp: App {
                 }
             }
         }
+
+        MenuBarExtra {
+            CaptionMenuBarExtra(board: board)
+        } label: {
+            MenuBarIcon()
+        }
+        .menuBarExtraStyle(.menu)
     }
 }

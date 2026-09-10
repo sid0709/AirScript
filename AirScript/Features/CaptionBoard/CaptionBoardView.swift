@@ -23,10 +23,7 @@ struct CaptionBoardView: View {
         }
         .toolbar {
             ToolbarItem(placement: .automatic) {
-                Label(board.status.toolbarLabel, systemImage: statusSymbol)
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-                    .labelStyle(.titleAndIcon)
+                StatusToolbarChip(status: board.status)
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -91,15 +88,6 @@ struct CaptionBoardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, DS.Spacing.md)
             .padding(.vertical, DS.Spacing.sm)
-    }
-
-    private var statusSymbol: String {
-        switch board.status {
-        case .listening: "waveform"
-        case .paused: "pause.circle"
-        case .needsAccessibility: "hand.raised"
-        case .waitingForLiveCaptions: "captions.bubble"
-        }
     }
 }
 

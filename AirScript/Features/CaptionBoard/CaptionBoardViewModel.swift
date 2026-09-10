@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -60,6 +61,13 @@ final class CaptionBoardViewModel {
 
     func openLiveCaptionsSettings() {
         SystemSettingsLink.openLiveCaptions()
+    }
+
+    func showMainWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first(where: { $0.canBecomeMain || $0.canBecomeKey }) {
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     private func handleHotkey(_ action: NumpadHotkeyAction) {

@@ -95,6 +95,17 @@ struct CaptionLineAssemblerTests {
         #expect(CaptionTextMerge.collapse(["Live Captions Running", "Hello there"]) == ["Hello there"])
     }
 
+    @Test func dropsMicrophoneOffChrome() {
+        #expect(CaptionTextMerge.isChrome("Microphone Off"))
+        #expect(CaptionTextMerge.isChrome("microphone off."))
+        var assembler = CaptionLineAssembler()
+        assembler.ingest("it's like super powerful.\nMicrophone Off\nIt runs even if you're not at your computer.")
+        #expect(assembler.lines.map(\.text) == [
+            "it's like super powerful.",
+            "It runs even if you're not at your computer.",
+        ])
+    }
+
     @Test func scrolledOffOverlapCommitsTheStablePrefix() {
         var assembler = CaptionLineAssembler()
         assembler.ingest("I talk a lot about this bot that I built called Benny and I wanted to figure out")
