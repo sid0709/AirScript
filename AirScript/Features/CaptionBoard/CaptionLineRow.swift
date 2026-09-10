@@ -6,6 +6,7 @@ struct CaptionLineRow: View {
     var body: some View {
         Text(line.text)
             .font(.body)
+            .fontWeight(line.isLive ? .medium : .regular)
             .foregroundStyle(line.isLive ? .primary : .secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, DS.Spacing.xxs)
@@ -14,7 +15,7 @@ struct CaptionLineRow: View {
 }
 
 #Preview {
-    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
         CaptionLineRow(line: CaptionLine(text: "Committed caption line.", isLive: false))
         CaptionLineRow(line: CaptionLine(text: "Live caption updating…", isLive: true))
     }

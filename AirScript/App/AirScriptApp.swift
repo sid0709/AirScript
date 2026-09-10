@@ -8,7 +8,9 @@ struct AirScriptApp: App {
         WindowGroup {
             ContentView()
                 .environment(board)
-                .background(.regularMaterial)
+                .containerBackground(for: .window) {
+                    WindowGlassBackground()
+                }
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 720, height: 480)
@@ -23,6 +25,17 @@ struct AirScriptApp: App {
                     board.clear()
                 }
                 .keyboardShortcut("k", modifiers: [.command])
+                Divider()
+                Button("Copy All Captions") {
+                    board.copyAll()
+                }
+                Menu("Copy Recent") {
+                    ForEach(1...9, id: \.self) { n in
+                        Button("Last \(n * 2) Sentences") {
+                            board.copyRecentSentences(n * 2)
+                        }
+                    }
+                }
                 Divider()
                 Button("Live Captions Settings…") {
                     board.openLiveCaptionsSettings()

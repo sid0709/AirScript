@@ -11,24 +11,42 @@ struct CaptionBoardView: View {
                     onGrantAccessibility: board.requestAccessibility,
                     onOpenLiveCaptions: board.openLiveCaptionsSettings
                 )
-                .frame(maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(DS.Spacing.lg)
             } else {
-                captionScroll
+                captionList
             }
         }
-        .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            numpadLegend
+        }
         .toolbar {
-            ToolbarItemGroup {
+            ToolbarItem(placement: .automatic) {
                 Label(board.status.toolbarLabel, systemImage: statusSymbol)
                     .foregroundStyle(.secondary)
                     .font(.callout)
-                Spacer()
-                Button(board.isRunning ? "Pause" : "Listen") {
+                    .labelStyle(.titleAndIcon)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
                     board.isRunning ? board.stop() : board.start()
+                } label: {
+                    Label(
+                        board.isRunning ? "Pause" : "Listen",
+                        systemImage: board.isRunning ? "pause.fill" : "waveform"
+                    )
                 }
-                Button("Clear", action: board.clear)
-                    .disabled(board.lines.isEmpty)
+                .help(board.isRunning ? "Pause" : "Listen")
+                .controlSize(.regular)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: board.clear) {
+                    Label("Clear", systemImage: "trash")
+                }
+                .disabled(board.lines.isEmpty)
+                .help("Clear")
+                .controlSize(.regular)
             }
         }
         .onAppear {
@@ -36,26 +54,43 @@ struct CaptionBoardView: View {
         }
     }
 
-    private var captionScroll: some View {
-        GlassPanel {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        ForEach(board.lines) { line in
-                            CaptionLineRow(line: line)
-                                .id(line.id)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .onChange(of: board.lines.last?.text) { _, _ in
-                    if let id = board.lines.last?.id {
-                        proxy.scrollTo(id, anchor: .bottom)
-                    }
+    private var captionList: some View {
+        ScrollViewReader { proxy in
+            List {
+                ForEach(board.lines) { line in
+                    CaptionLineRow(line: line)
+                        .id(line.id)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(
+                            top: DS.Spacing.xs,
+                            leading: DS.Spacing.md,
+                            bottom: DS.Spacing.xs,
+                            trailing: DS.Spacing.md
+                        ))
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .listStyle(.inset)
+            .scrollContentBackground(.hidden)
+            .onChange(of: board.lines.last?.id) { _, id in
+                guard let id else { return }
+                proxy.scrollTo(id, anchor: .bottom)
+            }
+            .onChange(of: board.lines.last?.text) { _, _ in
+                if let id = board.lines.last?.id {
+                    proxy.scrollTo(id, anchor: .bottom)
+                }
+            }
         }
+    }
+
+    private var numpadLegend: some View {
+        Text("1–9 sentences · 0 all · . . clear")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, DS.Spacing.sm)
     }
 
     private var statusSymbol: String {

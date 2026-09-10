@@ -141,3 +141,56 @@ struct CaptionLineAssemblerTests {
         #expect(assembler.lines[0].text.contains("long-term interview"))
     }
 }
+
+struct CaptionSentenceGrabTests {
+    private func lines(_ texts: [String]) -> [CaptionLine] {
+        texts.enumerated().map { index, text in
+            CaptionLine(text: text, isLive: index == texts.count - 1)
+        }
+    }
+
+    @Test func grabAllReturnsTheFullCache() {
+        let cache = lines([
+            "Hello there.",
+            "How are you?",
+            "I am fine!",
+        ])
+        #expect(CaptionSentenceGrab.grab(from: cache, count: 0) == "Hello there. How are you? I am fine!")
+    }
+
+    @Test func grabLastTwoSentencesMatchesNumpadOne() {
+        let cache = lines([
+            "First sentence.",
+            "Second sentence.",
+            "Third sentence.",
+            "Fourth leftover",
+        ])
+        #expect(CaptionSentenceGrab.grab(from: cache, count: 2) == "Third sentence. Fourth leftover")
+    }
+
+    @Test func grabLastFourSentencesMatchesNumpadTwo() {
+        let cache = lines([
+            "One.",
+            "Two.",
+            "Three.",
+            "Four.",
+            "Five.",
+        ])
+        #expect(CaptionSentenceGrab.grab(from: cache, count: 4) == "Two. Three. Four. Five.")
+    }
+
+    @Test func grabReturnsWhatExistsWhenCacheIsShorter() {
+        let cache = lines(["Only one sentence."])
+        #expect(CaptionSentenceGrab.grab(from: cache, count: 18) == "Only one sentence.")
+    }
+
+    @Test func emptyCacheReturnsNil() {
+        #expect(CaptionSentenceGrab.grab(from: [], count: 0) == nil)
+        #expect(CaptionSentenceGrab.grab(from: [], count: 2) == nil)
+    }
+
+    @Test func keepsTrailingPunctuation() {
+        let text = "Are you there? Yes. Wow!"
+        #expect(CaptionSentenceGrab.sentences(in: text) == ["Are you there?", "Yes.", "Wow!"])
+    }
+}
