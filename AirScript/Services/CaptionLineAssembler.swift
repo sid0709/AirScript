@@ -12,13 +12,30 @@ struct CaptionLineAssembler {
     }
 
     mutating func ingest(_ raw: String) {
-        let parts = Self.splitLines(raw)
+        let parts = CaptionTextMerge.collapse(Self.splitLines(raw))
         guard !parts.isEmpty, parts != lastParts else { return }
 
         let liveText = parts[parts.count - 1]
         let overlayCommitted = Array(parts.dropLast())
 
-        if shouldCommit(for: parts) {
+        if let liveIndex = lines.lastIndex(where: \.isLive) {
+            let previousLive = lines[liveIndex].text
+            // LastCry: same rolling caption → pop last chunk and replace it.
+            if CaptionTextMerge.isSameUtterance(previousLive, liveText) {
+                lines[liveIndex].text = CaptionTextMerge.preferred(previousLive, liveText)
+                for line in overlayCommitted where !CaptionTextMerge.isSameUtterance(line, lines[liveIndex].text) {
+                    ensureCommitted(line)
+                }
+                lastParts = parts
+                return
+            }
+            if let stable = CaptionTextMerge.scrolledOffPrefix(prev: previousLive, current: liveText) {
+                lines[liveIndex].text = stable
+                lines[liveIndex].isLive = false
+                lines.append(CaptionLine(text: liveText, isLive: true))
+                lastParts = parts
+                return
+            }
             commitLiveIfNeeded()
         }
 
@@ -41,18 +58,17 @@ struct CaptionLineAssembler {
             .filter { !$0.isEmpty }
     }
 
-    private func shouldCommit(for parts: [String]) -> Bool {
-        guard let oldLive = lastParts.last else { return false }
-        if parts.count > lastParts.count { return true }
-        let old = lastParts.joined(separator: "\n")
-        let next = parts.joined(separator: "\n")
-        if next.hasPrefix(old + "\n") { return true }
-        return parts.dropLast().contains(oldLive)
-    }
-
     private mutating func ensureCommitted(_ line: String) {
-        if lines.contains(where: { !$0.isLive && $0.text == line }) { return }
-        if lines.last?.isLive == true, lines.last?.text == line { return }
+        if CaptionTextMerge.isChrome(line) { return }
+        if let index = lines.lastIndex(where: {
+            !$0.isLive && CaptionTextMerge.isSameUtterance($0.text, line)
+        }) {
+            lines[index].text = CaptionTextMerge.preferred(lines[index].text, line)
+            return
+        }
+        if let last = lines.last, last.isLive, CaptionTextMerge.isSameUtterance(last.text, line) {
+            return
+        }
         let insertAt = lines.lastIndex(where: \.isLive) ?? lines.endIndex
         lines.insert(CaptionLine(text: line, isLive: false), at: insertAt)
     }

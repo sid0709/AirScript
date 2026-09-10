@@ -50,7 +50,7 @@ final class LiveCaptionAXClient {
         for window in (attribute(app, kAXWindowsAttribute as String) as? [AXUIElement] ?? []) {
             collect(from: window, into: &lines, depth: 0)
         }
-        return lines.joined(separator: "\n")
+        return CaptionTextMerge.collapse(lines).joined(separator: "\n")
     }
 
     private static func collect(from element: AXUIElement, into lines: inout [String], depth: Int) {
@@ -62,7 +62,7 @@ final class LiveCaptionAXClient {
             ?? string(element, kAXDescriptionAttribute as String),
            !value.isEmpty {
             for line in value.split(whereSeparator: \.isNewline).map({ $0.trimmingCharacters(in: .whitespaces) })
-            where !line.isEmpty && !lines.contains(line) {
+            where !line.isEmpty && !CaptionTextMerge.isChrome(line) && !lines.contains(line) {
                 lines.append(line)
             }
         }
