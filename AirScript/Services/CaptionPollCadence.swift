@@ -8,7 +8,7 @@ nonisolated struct CaptionPollCadence: Equatable {
     /// Full tree walk every N fast polls while speaking so new AX nodes cannot stay hidden.
     static let fullWalkEveryActivePolls = 5
 
-    var interval: TimeInterval = speaking
+    var interval: TimeInterval = Self.speaking
     private var unchangedAtInterval = 0
 
     var isSpeaking: Bool { interval <= Self.speaking + 0.001 }
