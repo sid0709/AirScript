@@ -140,6 +140,39 @@ struct CaptionLineAssemblerTests {
         #expect(assembler.lines[0].isLive)
         #expect(assembler.lines[0].text.contains("long-term interview"))
     }
+
+    @Test func cacheKeepsHistoryAfterOverlayScrolls() {
+        var assembler = CaptionLineAssembler()
+        assembler.ingest("First sentence here.")
+        assembler.ingest("First sentence here.\nSecond sentence here.")
+        assembler.ingest("Second sentence here.\nThird sentence here.")
+        #expect(assembler.lines.map(\.text) == [
+            "First sentence here.",
+            "Second sentence here.",
+            "Third sentence here.",
+        ])
+    }
+
+    @Test func resetStartsANewCacheWithoutRehydratingOverlayHistory() {
+        var assembler = CaptionLineAssembler()
+        assembler.ingest("Old one.")
+        assembler.ingest("Old one.\nOld two.")
+        assembler.reset()
+        #expect(assembler.lines.isEmpty)
+        assembler.ingest("""
+        Old one.
+        Old two.
+        Brand new live
+        """)
+        #expect(assembler.lines.map(\.text) == ["Brand new live"])
+        #expect(assembler.lines[0].isLive)
+        assembler.ingest("""
+        Old two.
+        Brand new live continues now.
+        """)
+        #expect(assembler.lines.count == 1)
+        #expect(assembler.lines[0].text.contains("Brand new live continues"))
+    }
 }
 
 struct CaptionSentenceGrabTests {
@@ -184,9 +217,17 @@ struct CaptionSentenceGrabTests {
         #expect(CaptionSentenceGrab.grab(from: cache, count: 18) == "Only one sentence.")
     }
 
-    @Test func emptyCacheReturnsNil() {
-        #expect(CaptionSentenceGrab.grab(from: [], count: 0) == nil)
-        #expect(CaptionSentenceGrab.grab(from: [], count: 2) == nil)
+    @Test func grabAllUsesTheUnboundedCache() {
+        var assembler = CaptionLineAssembler()
+        assembler.ingest("Alpha sentence.")
+        assembler.ingest("Alpha sentence.\nBeta sentence.")
+        assembler.ingest("Beta sentence.\nGamma sentence.")
+        #expect(
+            CaptionSentenceGrab.grab(from: assembler.lines, count: 0)
+                == "Alpha sentence. Beta sentence. Gamma sentence."
+        )
+        assembler.reset()
+        #expect(CaptionSentenceGrab.grab(from: assembler.lines, count: 0) == nil)
     }
 
     @Test func keepsTrailingPunctuation() {

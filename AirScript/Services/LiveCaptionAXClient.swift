@@ -24,6 +24,11 @@ final class LiveCaptionAXClient {
         lastText = ""
     }
 
+    /// Treat the current overlay as already seen so a cache clear does not re-ingest it.
+    func ignoreCurrentSnapshot() {
+        lastText = Self.readCaptionText()
+    }
+
     static var isLiveCaptionsRunning: Bool {
         liveCaptionsApp() != nil
     }

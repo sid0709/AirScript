@@ -39,6 +39,7 @@ final class CaptionBoardViewModel {
 
     func clear() {
         assembler.reset()
+        client.ignoreCurrentSnapshot()
         lines = []
     }
 
