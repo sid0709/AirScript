@@ -81,10 +81,7 @@ final class CaptionBoardViewModel {
     func syncTranslations(from settings: AppSettings) {
         showsEnglish = settings.showsEnglish
         visibleTranslateLanguages = settings.visibleTranslateLanguages
-        translations.ensure(
-            sentences: lines.flatMap { CaptionSentenceGrab.sentences(in: $0.text) },
-            languages: visibleTranslateLanguages
-        )
+        requestTranslations()
     }
 
     func requestAccessibility() {
@@ -131,13 +128,19 @@ final class CaptionBoardViewModel {
     private func handle(_ text: String) {
         guard assembler.ingest(text) else { return }
         publishLines()
-        translations.ensure(
-            sentences: lines.flatMap { CaptionSentenceGrab.sentences(in: $0.text) },
-            languages: visibleTranslateLanguages
-        )
         if status != .listening {
             status = .listening
         }
+        requestTranslations()
+    }
+
+    private func requestTranslations() {
+        let languages = visibleTranslateLanguages
+        guard !languages.isEmpty else { return }
+        translations.ensure(
+            sentences: CaptionSentenceGrab.translatableSentences(from: lines),
+            languages: languages
+        )
     }
 
     private func publishLines() {

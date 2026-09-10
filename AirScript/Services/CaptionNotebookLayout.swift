@@ -35,27 +35,18 @@ enum CaptionNotebookLayout {
                 )
             }
             for language in languages {
-                if let translated = translation(sentence, language.id) {
-                    layers.append(
-                        Layer(
-                            id: "\(language.id)-\(index)",
-                            languageCode: language.id,
-                            text: translated,
-                            isSource: false,
-                            isPending: false
-                        )
-                    )
-                } else {
-                    layers.append(
-                        Layer(
-                            id: "\(language.id)-\(index)-pending",
-                            languageCode: language.id,
-                            text: "…",
-                            isSource: false,
-                            isPending: true
-                        )
-                    )
+                guard let translated = translation(sentence, language.id), !translated.isEmpty else {
+                    continue
                 }
+                layers.append(
+                    Layer(
+                        id: "\(language.id)-\(index)",
+                        languageCode: language.id,
+                        text: translated,
+                        isSource: false,
+                        isPending: false
+                    )
+                )
             }
             guard !layers.isEmpty else { return nil }
             return Segment(id: "\(index)-\(sentence)", source: sentence, layers: layers)
@@ -85,7 +76,7 @@ enum CaptionNotebookText {
             var rows: [String] = []
             if showSource { rows.append(sentence) }
             for language in languages {
-                if let translated = translation(sentence, language.id) {
+                if let translated = translation(sentence, language.id), !translated.isEmpty {
                     rows.append(translated)
                 }
             }

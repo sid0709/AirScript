@@ -19,7 +19,6 @@ struct CaptionBoardView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background { translationPumps }
         .safeAreaInset(edge: .top, spacing: 0) {
             if !settings.translateToLanguages.isEmpty {
                 LanguageToggleBar(
@@ -98,7 +97,6 @@ struct CaptionBoardView: View {
 
     private func captionRow(_ line: CaptionLine) -> some View {
         CaptionLineRow(line: line, segments: segments(for: line))
-            .equatable()
             .id(line.id)
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
@@ -119,21 +117,6 @@ struct CaptionBoardView: View {
                 board.translations.value(source: source, target: target)
             }
         )
-    }
-
-    @ViewBuilder
-    private var translationPumps: some View {
-        ForEach(Array(board.translations.appleBatches.keys), id: \.self) { code in
-            if let language = TranslationLanguage.named(code),
-               let batch = board.translations.appleBatches[code] {
-                AppleTranslationPump(
-                    language: language,
-                    batch: batch,
-                    onComplete: { board.translations.applyAppleResults($0, language: language) },
-                    onFailure: { board.translations.fallbackToGoogle($0, language: language) }
-                )
-            }
-        }
     }
 
     private func scrollToLatest(_ proxy: ScrollViewProxy) {

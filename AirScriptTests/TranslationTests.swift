@@ -33,6 +33,18 @@ struct CaptionNotebookLayoutTests {
         #expect(segments.flatMap(\.layers).allSatisfy { !$0.isSource })
     }
 
+    @Test func originalShowsBeforeTranslationArrives() {
+        let segments = CaptionNotebookLayout.segments(
+            in: "Hello, how are you doing? Still talking",
+            showSource: true,
+            languages: [chinese],
+            translation: { _, _ in nil }
+        )
+        #expect(segments.map(\.source) == ["Hello, how are you doing?", "Still talking"])
+        #expect(segments[0].layers.map(\.text) == ["Hello, how are you doing?"])
+        #expect(segments[1].layers.map(\.text) == ["Still talking"])
+    }
+
     @Test func copyMatchesVisibleNotebook() {
         let lines = [
             CaptionLine(text: "Hello, how are you doing?", isLive: false),

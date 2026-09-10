@@ -1,6 +1,6 @@
 import Foundation
 
-struct TranslationLanguage: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct TranslationLanguage: Identifiable, Hashable, Codable, Sendable {
     var id: String { code }
 
     /// BCP-47 code used by Apple Translation (`zh-Hans`).

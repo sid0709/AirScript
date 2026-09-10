@@ -12,7 +12,7 @@ final class AppSettings {
         UserDefaults.standard.bool(forKey: hideFromScreenCaptureKey)
     }
 
-    var hideFromScreenCapture: Bool {
+    var hideFromScreenCapture = false {
         didSet {
             defaults.set(hideFromScreenCapture, forKey: Self.hideFromScreenCaptureKey)
             ScreenCaptureStealth.apply(enabled: hideFromScreenCapture)
@@ -20,12 +20,12 @@ final class AppSettings {
     }
 
     /// Target languages the user added in Settings, in display order.
-    var translateToLanguageCodes: [String] {
+    var translateToLanguageCodes: [String] = [] {
         didSet { defaults.set(translateToLanguageCodes, forKey: Self.translateToLanguageCodesKey) }
     }
 
     /// Board toggles currently on (`en` plus any added targets).
-    var visibleLanguageCodes: [String] {
+    var visibleLanguageCodes: [String] = [TranslationLanguage.english.code] {
         didSet { defaults.set(visibleLanguageCodes, forKey: Self.visibleLanguageCodesKey) }
     }
 
