@@ -2,170 +2,95 @@ import AppKit
 import ApplicationServices
 import Foundation
 
-protocol LiveCaptionReading: AnyObject {
-    func start(onText: @escaping (String) -> Void)
-    func stop()
-}
-
-/// Reads macOS Accessibility Live Captions (`com.apple.accessibility.LiveTranscriptionAgent`)
-/// from the system overlay via the Accessibility API.
-final class LiveCaptionAXClient: LiveCaptionReading {
-    private var observer: AXObserver?
-    private var observerContext: ObserverContext?
-    private var observedPID: pid_t = 0
-    private var pollTimer: Timer?
+/// Polls macOS Live Captions through the Accessibility API.
+final class LiveCaptionAXClient {
+    private var timer: Timer?
+    private var lastText = ""
     private var onText: ((String) -> Void)?
-    private var lastEmitted = ""
 
     func start(onText: @escaping (String) -> Void) {
         stop()
         self.onText = onText
-        attachIfPossible()
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
-            self?.attachIfPossible()
-            self?.emitSnapshot()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.poll()
         }
-        timer.tolerance = 0.02
-        pollTimer = timer
+        poll()
     }
 
     func stop() {
-        pollTimer?.invalidate()
-        pollTimer = nil
-        detachObserver()
+        timer?.invalidate()
+        timer = nil
         onText = nil
-        lastEmitted = ""
+        lastText = ""
     }
 
-    private func attachIfPossible() {
-        guard AccessibilityTrust.isTrusted,
-              let app = LiveCaptionProcess.runningApplication() else {
-            detachObserver()
-            return
+    static var isLiveCaptionsRunning: Bool {
+        liveCaptionsApp() != nil
+    }
+
+    private func poll() {
+        let text = Self.readCaptionText()
+        guard !text.isEmpty, text != lastText else { return }
+        lastText = text
+        onText?(text)
+    }
+
+    private static func liveCaptionsApp() -> NSRunningApplication? {
+        NSWorkspace.shared.runningApplications.first {
+            $0.bundleIdentifier == "com.apple.accessibility.LiveTranscriptionAgent"
+                || $0.localizedName == "Live Captions"
         }
-        let pid = app.processIdentifier
-        guard pid != observedPID else { return }
-        detachObserver()
-        installObserver(pid: pid)
     }
 
-    private func installObserver(pid: pid_t) {
-        let context = ObserverContext(client: self)
-        var newObserver: AXObserver?
-        let error = AXObserverCreateWithInfoCallback(pid, { _, element, notification, info, refcon in
-            guard let refcon else { return }
-            Unmanaged<ObserverContext>.fromOpaque(refcon).takeUnretainedValue()
-                .client?.handleNotification(element: element, notification: notification, info: info)
-        }, &newObserver)
-
-        guard error == .success, let newObserver else { return }
-
-        CFRunLoopAddSource(
-            CFRunLoopGetMain(),
-            AXObserverGetRunLoopSource(newObserver),
-            .commonModes
-        )
-
+    private static func readCaptionText() -> String {
+        guard let pid = liveCaptionsApp()?.processIdentifier else { return "" }
         let app = AXUIElementCreateApplication(pid)
-        let notifications = [
-            kAXValueChangedNotification,
-            kAXLayoutChangedNotification,
-            kAXWindowCreatedNotification,
-            kAXTitleChangedNotification,
-            kAXAnnouncementRequestedNotification,
-        ]
-        let pointer = Unmanaged.passUnretained(context).toOpaque()
-        for notification in notifications {
-            AXObserverAddNotification(newObserver, app, notification as CFString, pointer)
+        var lines: [String] = []
+        collect(from: app, into: &lines, depth: 0)
+        for window in (attribute(app, kAXWindowsAttribute as String) as? [AXUIElement] ?? []) {
+            collect(from: window, into: &lines, depth: 0)
         }
-
-        observerContext = context
-        observer = newObserver
-        observedPID = pid
+        return lines.joined(separator: "\n")
     }
 
-    private func detachObserver() {
-        if let observer {
-            CFRunLoopRemoveSource(
-                CFRunLoopGetMain(),
-                AXObserverGetRunLoopSource(observer),
-                .commonModes
-            )
-        }
-        observer = nil
-        observerContext = nil
-        observedPID = 0
-    }
+    private static func collect(from element: AXUIElement, into lines: inout [String], depth: Int) {
+        guard depth < 12, lines.count < 40 else { return }
+        let role = string(element, kAXRoleAttribute as String) ?? ""
+        if role.contains("Menu") { return }
 
-    private func handleNotification(
-        element: AXUIElement,
-        notification: CFString,
-        info: CFDictionary?
-    ) {
-        if let announcement = announcementText(from: element, info: info) {
-            emit(announcement)
-            return
-        }
-        emitSnapshot()
-    }
-
-    private func announcementText(from element: AXUIElement, info: CFDictionary?) -> String? {
-        if let info = info as? [String: Any] {
-            for key in ["AXAnnouncement", kAXValueAttribute as String] {
-                if let value = info[key] as? String, !value.isEmpty {
-                    return value
-                }
+        if let value = string(element, kAXValueAttribute as String)
+            ?? string(element, kAXDescriptionAttribute as String),
+           !value.isEmpty {
+            for line in value.split(whereSeparator: \.isNewline).map({ $0.trimmingCharacters(in: .whitespaces) })
+            where !line.isEmpty && !lines.contains(line) {
+                lines.append(line)
             }
         }
-        return AXAttribute.string(element, kAXValueAttribute as String)
-            ?? AXAttribute.string(element, kAXDescriptionAttribute as String)
-    }
 
-    private func emitSnapshot() {
-        for pid in candidatePIDs() {
-            let app = AXUIElementCreateApplication(pid)
-            var snapshot = AXCaptionTextCollector.captionText(from: app)
-            if snapshot.isEmpty {
-                for window in AXAttribute.windows(app) {
-                    snapshot = AXCaptionTextCollector.captionText(from: window)
-                    if !snapshot.isEmpty { break }
-                }
-            }
-            if !snapshot.isEmpty {
-                emit(snapshot)
-                return
-            }
+        for child in children(element) {
+            collect(from: child, into: &lines, depth: depth + 1)
         }
     }
 
-    private func candidatePIDs() -> [pid_t] {
-        var pids: [pid_t] = []
-        if let pid = LiveCaptionProcess.runningApplication()?.processIdentifier {
-            pids.append(pid)
+    private static func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
+        var value: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
+            return nil
         }
-        for app in NSWorkspace.shared.runningApplications {
-            guard let identifier = app.bundleIdentifier else { continue }
-            if identifier == "com.apple.AccessibilityUIServer"
-                || identifier == "com.apple.accessibility.AXVisualSupportAgent" {
-                pids.append(app.processIdentifier)
-            }
-        }
-        return pids
+        return value
     }
 
-    private func emit(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != lastEmitted else { return }
-        if AXCaptionTextCollector.isChrome(trimmed) { return }
-        lastEmitted = trimmed
-        onText?(trimmed)
+    private static func string(_ element: AXUIElement, _ attribute: String) -> String? {
+        guard let string = self.attribute(element, attribute) as? String else { return nil }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
-}
 
-private final class ObserverContext {
-    weak var client: LiveCaptionAXClient?
-
-    init(client: LiveCaptionAXClient) {
-        self.client = client
+    private static func children(_ element: AXUIElement) -> [AXUIElement] {
+        var value: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success else {
+            return []
+        }
+        return value as? [AXUIElement] ?? []
     }
 }

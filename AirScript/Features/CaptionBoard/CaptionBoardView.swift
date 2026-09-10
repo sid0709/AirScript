@@ -4,8 +4,8 @@ struct CaptionBoardView: View {
     @Bindable var board: CaptionBoardViewModel
 
     var body: some View {
-        VStack(spacing: DS.Spacing.md) {
-            if shouldShowGate {
+        Group {
+            if board.lines.isEmpty, board.status == .needsAccessibility || board.status == .waitingForLiveCaptions {
                 LiveCaptionPermissionView(
                     status: board.status,
                     onGrantAccessibility: board.requestAccessibility,
@@ -18,33 +18,26 @@ struct CaptionBoardView: View {
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.clear)
         .toolbar {
-            ToolbarItemGroup(placement: .automatic) {
-                statusLabel
+            ToolbarItemGroup {
+                Label(board.status.toolbarLabel, systemImage: statusSymbol)
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
                 Spacer()
-                Button(board.isRunning ? "Pause" : "Listen", action: toggleListening)
-                    .keyboardShortcut(.space, modifiers: [])
+                Button(board.isRunning ? "Pause" : "Listen") {
+                    board.isRunning ? board.stop() : board.start()
+                }
                 Button("Clear", action: board.clear)
                     .disabled(board.lines.isEmpty)
-                Button("Live Captions Settings", action: board.openLiveCaptionsSettings)
             }
         }
         .onAppear {
-            if !board.isRunning {
-                board.start()
-            }
+            if !board.isRunning { board.start() }
         }
     }
 
-    private var shouldShowGate: Bool {
-        board.lines.isEmpty && (board.status == .needsAccessibility
-            || board.status == .waitingForLiveCaptions
-            || board.status == .overlayHidden)
-    }
-
     private var captionScroll: some View {
-        GlassPanel(material: DS.MaterialRole.card, padding: DS.Spacing.md) {
+        GlassPanel {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: DS.Spacing.xs) {
@@ -56,21 +49,13 @@ struct CaptionBoardView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .onChange(of: board.lines.last?.text) { _, _ in
-                    if let lastID = board.lines.last?.id {
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            proxy.scrollTo(lastID, anchor: .bottom)
-                        }
+                    if let id = board.lines.last?.id {
+                        proxy.scrollTo(id, anchor: .bottom)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-    }
-
-    private var statusLabel: some View {
-        Label(board.status.toolbarLabel, systemImage: statusSymbol)
-            .foregroundStyle(.secondary)
-            .font(.callout)
     }
 
     private var statusSymbol: String {
@@ -79,31 +64,11 @@ struct CaptionBoardView: View {
         case .paused: "pause.circle"
         case .needsAccessibility: "hand.raised"
         case .waitingForLiveCaptions: "captions.bubble"
-        case .overlayHidden: "ear"
-        }
-    }
-
-    private func toggleListening() {
-        if board.isRunning {
-            board.stop()
-        } else {
-            board.start()
         }
     }
 }
 
 #Preview {
-    CaptionBoardView(board: {
-        let board = CaptionBoardViewModel(reader: PreviewCaptionReader())
-        return board
-    }())
-    .frame(width: 640, height: 420)
-}
-
-private final class PreviewCaptionReader: LiveCaptionReading {
-    func start(onText: @escaping (String) -> Void) {
-        onText("Hello from Live Captions.\nThis line is still forming")
-    }
-
-    func stop() {}
+    CaptionBoardView(board: CaptionBoardViewModel())
+        .frame(width: 640, height: 420)
 }

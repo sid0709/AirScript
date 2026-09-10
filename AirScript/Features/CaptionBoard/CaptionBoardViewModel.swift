@@ -8,32 +8,26 @@ final class CaptionBoardViewModel {
     private(set) var isRunning = false
 
     private var assembler = CaptionLineAssembler()
-    private let reader: LiveCaptionReading
+    private let client = LiveCaptionAXClient()
     private var statusTimer: Timer?
-
-    init(reader: LiveCaptionReading = LiveCaptionAXClient()) {
-        self.reader = reader
-        refreshStatus()
-    }
 
     func start() {
         isRunning = true
-        refreshStatus()
         if !AccessibilityTrust.isTrusted {
             AccessibilityTrust.request()
         }
-        reader.start { [weak self] text in
+        client.start { [weak self] text in
             self?.handle(text)
         }
-        statusTimer?.invalidate()
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in
+        refreshStatus()
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             self?.refreshStatus()
         }
     }
 
     func stop() {
         isRunning = false
-        reader.stop()
+        client.stop()
         statusTimer?.invalidate()
         statusTimer = nil
         status = .paused
@@ -42,7 +36,6 @@ final class CaptionBoardViewModel {
     func clear() {
         assembler.reset()
         lines = []
-        refreshStatus()
     }
 
     func requestAccessibility() {
@@ -58,9 +51,7 @@ final class CaptionBoardViewModel {
     private func handle(_ text: String) {
         assembler.ingest(text)
         lines = assembler.lines
-        if isRunning {
-            status = .listening
-        }
+        status = .listening
     }
 
     private func refreshStatus() {
@@ -68,14 +59,14 @@ final class CaptionBoardViewModel {
             status = .needsAccessibility
             return
         }
-        guard isRunning else {
+        if !isRunning {
             status = .paused
             return
         }
-        if !LiveCaptionProcess.isRunning {
+        if !LiveCaptionAXClient.isLiveCaptionsRunning {
             status = .waitingForLiveCaptions
             return
         }
-        status = lines.contains(where: \.isLive) ? .listening : .overlayHidden
+        status = .listening
     }
 }
