@@ -11,4 +11,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environment(CaptionBoardViewModel())
+        .environment(AppSettings())
 }

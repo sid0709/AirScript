@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CaptionBoardView: View {
     @Bindable var board: CaptionBoardViewModel
+    @Environment(AppSettings.self) private var settings
 
     var body: some View {
         Group {
@@ -18,8 +19,27 @@ struct CaptionBoardView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background { translationPumps }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if !settings.translateToLanguages.isEmpty {
+                LanguageToggleBar(
+                    languages: settings.toggleLanguages,
+                    isOn: settings.isLanguageVisible,
+                    onToggle: { code in
+                        settings.toggleLanguage(code)
+                        board.syncTranslations(from: settings)
+                    }
+                )
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             numpadLegend
+        }
+        .onChange(of: settings.translateToLanguageCodes) { _, _ in
+            board.syncTranslations(from: settings)
+        }
+        .onChange(of: settings.visibleLanguageCodes) { _, _ in
+            board.syncTranslations(from: settings)
         }
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -47,6 +67,7 @@ struct CaptionBoardView: View {
             }
         }
         .onAppear {
+            board.syncTranslations(from: settings)
             if !board.isRunning { board.start() }
         }
     }
@@ -76,7 +97,7 @@ struct CaptionBoardView: View {
     }
 
     private func captionRow(_ line: CaptionLine) -> some View {
-        CaptionLineRow(line: line)
+        CaptionLineRow(line: line, segments: segments(for: line))
             .equatable()
             .id(line.id)
             .listRowSeparator(.hidden)
@@ -87,6 +108,32 @@ struct CaptionBoardView: View {
                 bottom: DS.Spacing.xs,
                 trailing: DS.Spacing.md
             ))
+    }
+
+    private func segments(for line: CaptionLine) -> [CaptionNotebookLayout.Segment] {
+        CaptionNotebookLayout.segments(
+            in: line.text,
+            showSource: settings.showsEnglish,
+            languages: settings.visibleTranslateLanguages,
+            translation: { source, target in
+                board.translations.value(source: source, target: target)
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var translationPumps: some View {
+        ForEach(Array(board.translations.appleBatches.keys), id: \.self) { code in
+            if let language = TranslationLanguage.named(code),
+               let batch = board.translations.appleBatches[code] {
+                AppleTranslationPump(
+                    language: language,
+                    batch: batch,
+                    onComplete: { board.translations.applyAppleResults($0, language: language) },
+                    onFailure: { board.translations.fallbackToGoogle($0, language: language) }
+                )
+            }
+        }
     }
 
     private func scrollToLatest(_ proxy: ScrollViewProxy) {
@@ -107,5 +154,6 @@ struct CaptionBoardView: View {
 
 #Preview {
     CaptionBoardView(board: CaptionBoardViewModel())
+        .environment(AppSettings())
         .frame(width: 640, height: 420)
 }

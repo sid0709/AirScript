@@ -16,10 +16,14 @@ final class CaptionBoardViewModel {
         return committedLines
     }
 
+    private(set) var translations = CaptionTranslationStore()
+
     @ObservationIgnored private var assembler = CaptionLineAssembler()
     @ObservationIgnored private let client = LiveCaptionAXClient()
     @ObservationIgnored private var hotkeys: NumpadHotkeyMonitor?
     @ObservationIgnored private var activationObserver: NSObjectProtocol?
+    @ObservationIgnored private var showsEnglish = true
+    @ObservationIgnored private var visibleTranslateLanguages: [TranslationLanguage] = []
 
     func start() {
         isRunning = true
@@ -51,6 +55,7 @@ final class CaptionBoardViewModel {
         client.ignoreCurrentSnapshot()
         committedLines = []
         liveLine = nil
+        translations.reset()
     }
 
     func copyAll() {
@@ -58,8 +63,28 @@ final class CaptionBoardViewModel {
     }
 
     func copyRecentSentences(_ count: Int) {
-        guard let text = CaptionSentenceGrab.grab(from: lines, count: count) else { return }
+        let store = translations
+        let english = showsEnglish
+        let languages = visibleTranslateLanguages
+        guard let text = CaptionNotebookText.grab(
+            from: lines,
+            count: count,
+            showSource: english,
+            languages: languages,
+            translation: { source, target in
+                store.value(source: source, target: target)
+            }
+        ) else { return }
         FocusedFieldPaster.replaceFocusedField(with: text)
+    }
+
+    func syncTranslations(from settings: AppSettings) {
+        showsEnglish = settings.showsEnglish
+        visibleTranslateLanguages = settings.visibleTranslateLanguages
+        translations.ensure(
+            sentences: lines.flatMap { CaptionSentenceGrab.sentences(in: $0.text) },
+            languages: visibleTranslateLanguages
+        )
     }
 
     func requestAccessibility() {
@@ -106,6 +131,10 @@ final class CaptionBoardViewModel {
     private func handle(_ text: String) {
         guard assembler.ingest(text) else { return }
         publishLines()
+        translations.ensure(
+            sentences: lines.flatMap { CaptionSentenceGrab.sentences(in: $0.text) },
+            languages: visibleTranslateLanguages
+        )
         if status != .listening {
             status = .listening
         }

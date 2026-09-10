@@ -21,7 +21,8 @@ enum CaptionSentenceGrab {
         var current = ""
         for character in text {
             current.append(character)
-            if character == "." || character == "!" || character == "?" {
+            if character == "." || character == "!" || character == "?"
+                || character == "。" || character == "！" || character == "？" {
                 let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
                     result.append(trimmed)

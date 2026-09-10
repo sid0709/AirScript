@@ -65,8 +65,10 @@ struct AirScriptApp: App {
                     if !board.isRunning { board.start() }
                     ScreenCaptureStealth.noteReady(enabled: settings.hideFromScreenCapture)
                 }
+                .showsMainWindowOnStatusItemClick()
         } label: {
             MenuBarIcon()
+                .showsMainWindowOnStatusItemClick()
         }
         .menuBarExtraStyle(.menu)
     }

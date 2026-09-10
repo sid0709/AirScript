@@ -14,8 +14,7 @@ struct CaptionMenuBarExtra: View {
             .disabled(board.lines.isEmpty)
         Divider()
         Button("Show AirScript") {
-            NSApp.activate(ignoringOtherApps: true)
-            openWindow(id: "main")
+            StatusItemLeftClickMonitor.showMainWindow(using: openWindow)
         }
         Button("Settings…") {
             NSApp.activate(ignoringOtherApps: true)

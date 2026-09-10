@@ -21,9 +21,11 @@ struct SettingsView: View {
             } header: {
                 Text("Stealth")
             }
+
+            TranslateToLanguagesSection(settings: settings)
         }
         .formStyle(.grouped)
-        .frame(minWidth: 420, idealWidth: 460, minHeight: 160)
+        .frame(minWidth: 420, idealWidth: 460, minHeight: 280)
         .containerBackground(for: .window) {
             WindowGlassBackground()
         }
@@ -33,5 +35,5 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environment(AppSettings())
-        .frame(width: 460, height: 220)
+        .frame(width: 460, height: 360)
 }
