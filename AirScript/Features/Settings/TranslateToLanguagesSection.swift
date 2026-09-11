@@ -30,7 +30,7 @@ struct TranslateToLanguagesSection: View {
         } header: {
             Text("Translate to")
         } footer: {
-            Text("English is the source. Added languages appear as floating toggles on the board. Turn a language on to stack its translation under every sentence.")
+            Text("English is the source. Translations run on this Mac, so AirScript still works if you move the app. The first time you use a language, macOS may download that language pack.")
         }
     }
 }

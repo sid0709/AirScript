@@ -29,6 +29,7 @@ struct CaptionBoardView: View {
                         board.syncTranslations(from: settings)
                     }
                 )
+                .background { translationPumps }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -117,6 +118,21 @@ struct CaptionBoardView: View {
                 board.translations.value(source: source, target: target)
             }
         )
+    }
+
+    @ViewBuilder
+    private var translationPumps: some View {
+        ForEach(Array(board.translations.appleJobs.keys), id: \.self) { code in
+            if let language = TranslationLanguage.named(code),
+               let job = board.translations.appleJobs[code] {
+                AppleTranslationPump(
+                    language: language,
+                    job: job,
+                    onComplete: { board.translations.applyAppleResults($0, language: language, token: job.token) },
+                    onFailure: { board.translations.fallbackToGoogle($0, language: language) }
+                )
+            }
+        }
     }
 
     private func scrollToLatest(_ proxy: ScrollViewProxy) {

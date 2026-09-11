@@ -137,8 +137,8 @@ final class CaptionBoardViewModel {
     private func requestTranslations() {
         let languages = visibleTranslateLanguages
         guard !languages.isEmpty else { return }
-        translations.ensure(
-            sentences: CaptionSentenceGrab.translatableSentences(from: lines),
+        translations.observe(
+            sentences: CaptionSentenceGrab.orderedSentences(from: lines),
             languages: languages
         )
     }

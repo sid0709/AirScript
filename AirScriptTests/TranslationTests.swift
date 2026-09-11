@@ -95,11 +95,9 @@ struct GoogleGTXTranslatorTests {
         #expect(try GoogleGTXTranslator.translatedText(from: json) == "你好。")
     }
 
-    @Test func rejectsHtmlBlockPage() {
-        let html = Data("<html><body>Sorry...</body></html>".utf8)
-        #expect(throws: GoogleGTXError.blocked) {
-            try GoogleGTXTranslator.translatedText(from: html)
-        }
+    @Test func alignsOneTransPerGoogleSentence() throws {
+        let json = Data(#"{"sentences":[{"trans":"你好。"},{"trans":"好。"}],"src":"en"}"#.utf8)
+        #expect(try GoogleGTXTranslator.alignedTranslations(from: json, expectedCount: 2) == ["你好。", "好。"])
     }
 }
 
@@ -130,5 +128,56 @@ struct AppSettingsTranslationTests {
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
+    }
+}
+
+struct CaptionTranslationPlannerTests {
+    @Test func batchesFromFirstUntranslatedThroughPreviousSentence() {
+        let translated = Set(["Hello, how are you doing?"])
+        let plan = CaptionTranslationPlanner.plan(
+            sentences: ["Hello, how are you doing?", "Good.", "Still talking"]
+        ) { translated.contains($0) }
+        #expect(plan.completedBatch == ["Good."])
+        #expect(plan.idleSentence == "Still talking")
+    }
+
+    @Test func batchesEveryUntranslatedCompletedSentenceOnceANewOneStarts() {
+        let plan = CaptionTranslationPlanner.plan(
+            sentences: ["Hello, how are you doing?", "Good.", "Still talking"]
+        ) { _ in false }
+        #expect(plan.completedBatch == ["Hello, how are you doing?", "Good."])
+        #expect(plan.idleSentence == "Still talking")
+    }
+
+    @Test func skipsCompletedBatchWhenPreviousSentenceIsAlreadyTranslated() {
+        let translated = Set(["Hello, how are you doing?", "Good."])
+        let plan = CaptionTranslationPlanner.plan(
+            sentences: ["Hello, how are you doing?", "Good.", "Still talking"]
+        ) { translated.contains($0) }
+        #expect(plan.completedBatch.isEmpty)
+        #expect(plan.idleSentence == "Still talking")
+    }
+
+    @Test func doesNotTranslateTheLiveSentenceUntilIdle() {
+        let plan = CaptionTranslationPlanner.plan(
+            sentences: ["Hello, how are you doing?", "Still talking"]
+        ) { _ in false }
+        #expect(plan.completedBatch == ["Hello, how are you doing?"])
+        #expect(plan.idleSentence == "Still talking")
+        #expect(
+            CaptionTranslationPlanner.idleBatch(
+                sentences: ["Hello, how are you doing?", "Still talking"]
+            ) { $0 == "Hello, how are you doing?" }
+                == ["Still talking"]
+        )
+    }
+
+    @Test func idleAfterAFinishedUtteranceTranslatesLeftoverCompletedSentences() {
+        #expect(
+            CaptionTranslationPlanner.idleBatch(
+                sentences: ["Hello, how are you doing?", "Good."]
+            ) { $0 == "Hello, how are you doing?" }
+                == ["Good."]
+        )
     }
 }

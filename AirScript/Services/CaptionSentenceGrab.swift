@@ -43,18 +43,9 @@ enum CaptionSentenceGrab {
     }
 
     /// Live leftovers stay off this list so English can paint before a translation exists.
-    static func translatableSentences(from lines: [CaptionLine]) -> [String] {
-        var seen = Set<String>()
-        var result: [String] = []
-        for line in lines {
-            let parts = sentences(in: line.text)
-            let slice = line.isLive ? parts.filter(isComplete) : parts
-            for sentence in slice {
-                let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard trimmed.count >= 2, seen.insert(trimmed).inserted else { continue }
-                result.append(trimmed)
-            }
-        }
-        return result
+    static func orderedSentences(from lines: [CaptionLine]) -> [String] {
+        sentences(in: lines.map(\.text).joined(separator: " "))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 }

@@ -246,14 +246,14 @@ struct CaptionSentenceGrabTests {
         #expect(CaptionSentenceGrab.sentences(in: text) == ["Are you there?", "Yes.", "Wow!"])
     }
 
-    @Test func translatableSentencesSkipTheLiveFragment() {
+    @Test func orderedSentencesKeepTheLiveFragment() {
         let cache = [
             CaptionLine(text: "Hello, how are you doing?", isLive: false),
             CaptionLine(text: "Good. Still talking", isLive: true),
         ]
         #expect(
-            CaptionSentenceGrab.translatableSentences(from: cache)
-                == ["Hello, how are you doing?", "Good."]
+            CaptionSentenceGrab.orderedSentences(from: cache)
+                == ["Hello, how are you doing?", "Good.", "Still talking"]
         )
     }
 }
