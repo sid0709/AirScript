@@ -63,18 +63,7 @@ final class CaptionBoardViewModel {
     }
 
     func copyRecentSentences(_ count: Int) {
-        let store = translations
-        let english = showsEnglish
-        let languages = visibleTranslateLanguages
-        guard let text = CaptionNotebookText.grab(
-            from: lines,
-            count: count,
-            showSource: english,
-            languages: languages,
-            translation: { source, target in
-                store.value(source: source, target: target)
-            }
-        ) else { return }
+        guard let text = CaptionSentenceGrab.grab(from: lines, count: count) else { return }
         FocusedFieldPaster.replaceFocusedField(with: text)
     }
 

@@ -8,6 +8,7 @@ struct AirScriptApp: App {
 
     init() {
         ScreenCaptureStealth.start()
+        WindowAlwaysOnTop.start()
     }
 
     var body: some Scene {
@@ -20,6 +21,7 @@ struct AirScriptApp: App {
                 }
                 .onAppear {
                     ScreenCaptureStealth.noteReady(enabled: settings.hideFromScreenCapture)
+                    WindowAlwaysOnTop.noteReady(enabled: settings.alwaysOnTop)
                 }
         }
         .windowResizability(.contentMinSize)
@@ -58,12 +60,14 @@ struct AirScriptApp: App {
             SettingsView()
                 .environment(settings)
         }
+        .windowResizability(.contentSize)
 
         MenuBarExtra {
             CaptionMenuBarExtra(board: board)
                 .onAppear {
                     if !board.isRunning { board.start() }
                     ScreenCaptureStealth.noteReady(enabled: settings.hideFromScreenCapture)
+                    WindowAlwaysOnTop.noteReady(enabled: settings.alwaysOnTop)
                 }
                 .showsMainWindowOnStatusItemClick()
         } label: {
