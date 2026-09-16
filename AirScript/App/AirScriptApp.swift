@@ -26,7 +26,6 @@ struct AirScriptApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 720, height: 480)
-        .defaultLaunchBehavior(.suppressed)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("Captions") {
