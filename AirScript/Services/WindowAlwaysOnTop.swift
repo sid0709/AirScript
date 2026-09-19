@@ -1,13 +1,10 @@
 import AppKit
 import Foundation
 
-/// Excludes AirScript windows from screenshots, recordings, and screen sharing.
-/// Uses `NSWindow.sharingType = .none` so the windows stay on your display.
-enum ScreenCaptureStealth {
+enum WindowAlwaysOnTop {
     private static var observers: [NSObjectProtocol] = []
     private static var isAppReady = false
 
-    /// Register launch observers only. Do not touch `NSApp` here — it traps during `App.init`.
     static func start() {
         guard observers.isEmpty else { return }
         let center = NotificationCenter.default
@@ -17,7 +14,7 @@ enum ScreenCaptureStealth {
                 object: nil,
                 queue: .main
             ) { _ in
-                noteReady(enabled: AppSettings.hideFromScreenCapture)
+                noteReady(enabled: AppSettings.alwaysOnTop)
             }
         )
         observers.append(
@@ -26,7 +23,7 @@ enum ScreenCaptureStealth {
                 object: nil,
                 queue: .main
             ) { _ in
-                apply(enabled: AppSettings.hideFromScreenCapture)
+                apply(enabled: AppSettings.alwaysOnTop)
             }
         )
     }
@@ -38,14 +35,18 @@ enum ScreenCaptureStealth {
 
     static func apply(enabled: Bool) {
         guard isAppReady else { return }
-        // Settings can be mutated off-main (tests, background tasks); NSWindow is main-only.
         guard Thread.isMainThread else {
             DispatchQueue.main.async { apply(enabled: enabled) }
             return
         }
-        let sharing: NSWindow.SharingType = enabled ? .none : .readOnly
-        for window in NSApp.windows {
-            window.sharingType = sharing
+        let level: NSWindow.Level = enabled ? .floating : .normal
+        for window in NSApp.windows where !isStatusItem(window) {
+            window.level = level
         }
+    }
+
+    private static func isStatusItem(_ window: NSWindow) -> Bool {
+        if window.contentView is NSStatusBarButton { return true }
+        return window.className.contains("StatusBar") || window.className.contains("StatusItem")
     }
 }

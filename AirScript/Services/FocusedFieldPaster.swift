@@ -9,12 +9,12 @@ enum FocusedFieldPaster {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
 
+        // Small gaps let the target app apply each step before the next arrives.
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(40))
             postKey(Self.a, flags: .maskCommand)
-            try? await Task.sleep(for: .milliseconds(40))
+            try? await Task.sleep(for: .milliseconds(12))
             postKey(Self.delete)
-            try? await Task.sleep(for: .milliseconds(40))
+            try? await Task.sleep(for: .milliseconds(12))
             postKey(Self.v, flags: .maskCommand)
         }
     }

@@ -40,5 +40,5 @@ struct TranslateToLanguagesSection: View {
         TranslateToLanguagesSection(settings: AppSettings())
     }
     .formStyle(.grouped)
-    .frame(width: 460, height: 280)
+    .frame(width: 300, height: 280)
 }

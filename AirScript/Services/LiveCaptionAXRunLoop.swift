@@ -82,22 +82,24 @@ nonisolated final class LiveCaptionAXRunLoop: @unchecked Sendable {
         CFRunLoopWakeUp(runLoop)
     }
 
-    func performSync<T>(_ work: () -> T) -> T {
+    /// `work` must be `@escaping`: CFRunLoopPerformBlock keeps the block alive until the
+    /// run loop finishes draining it, which is after `done` is signalled. Bridging a
+    /// non-escaping closure through `withoutActuallyEscaping` trapped on that window.
+    func performSync<T>(_ work: @escaping () -> T) -> T {
         if isOnAXThread {
             return work()
         }
-        guard cfRunLoop != nil else {
+        guard let runLoop = cfRunLoop else {
             return work()
         }
         let done = DispatchSemaphore(value: 0)
         var result: T?
-        withoutActuallyEscaping(work) { escapingWork in
-            perform {
-                result = escapingWork()
-                done.signal()
-            }
-            done.wait()
+        CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
+            result = work()
+            done.signal()
         }
+        CFRunLoopWakeUp(runLoop)
+        done.wait()
         return result!
     }
 }

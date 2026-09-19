@@ -43,7 +43,7 @@ enum StatusItemLeftClickMonitor {
         }
     }
 
-    private static func bringBoardWindowForward() {
+    static func bringBoardWindowForward() {
         let window = NSApp.windows.first(where: isBoardWindow)
             ?? NSApp.windows.first(where: { $0.canBecomeMain && !isStatusItemWindow($0) })
         guard let window else { return }

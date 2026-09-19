@@ -53,38 +53,3 @@ enum CaptionNotebookLayout {
         }
     }
 }
-
-enum CaptionNotebookText {
-    static func grab(
-        from lines: [CaptionLine],
-        count: Int,
-        showSource: Bool,
-        languages: [TranslationLanguage],
-        translation: (String, String) -> String?
-    ) -> String? {
-        let sentences = CaptionSentenceGrab.sentences(
-            in: lines.map(\.text).joined(separator: " ")
-        )
-        guard !sentences.isEmpty else { return nil }
-        let slice = count <= 0 ? sentences[...] : sentences.suffix(count)
-        if languages.isEmpty && showSource {
-            return CaptionSentenceGrab.grab(from: lines, count: count)
-        }
-
-        var blocks: [String] = []
-        for sentence in slice {
-            var rows: [String] = []
-            if showSource { rows.append(sentence) }
-            for language in languages {
-                if let translated = translation(sentence, language.id), !translated.isEmpty {
-                    rows.append(translated)
-                }
-            }
-            if !rows.isEmpty {
-                blocks.append(rows.joined(separator: "\n"))
-            }
-        }
-        let joined = blocks.joined(separator: "\n")
-        return joined.isEmpty ? nil : joined
-    }
-}

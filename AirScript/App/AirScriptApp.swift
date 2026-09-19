@@ -8,6 +8,7 @@ struct AirScriptApp: App {
 
     init() {
         ScreenCaptureStealth.start()
+        WindowAlwaysOnTop.start()
     }
 
     var body: some Scene {
@@ -20,11 +21,11 @@ struct AirScriptApp: App {
                 }
                 .onAppear {
                     ScreenCaptureStealth.noteReady(enabled: settings.hideFromScreenCapture)
+                    WindowAlwaysOnTop.noteReady(enabled: settings.alwaysOnTop)
                 }
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 720, height: 480)
-        .defaultLaunchBehavior(.suppressed)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandMenu("Captions") {
@@ -58,12 +59,14 @@ struct AirScriptApp: App {
             SettingsView()
                 .environment(settings)
         }
+        .windowResizability(.contentSize)
 
         MenuBarExtra {
             CaptionMenuBarExtra(board: board)
                 .onAppear {
                     if !board.isRunning { board.start() }
                     ScreenCaptureStealth.noteReady(enabled: settings.hideFromScreenCapture)
+                    WindowAlwaysOnTop.noteReady(enabled: settings.alwaysOnTop)
                 }
                 .showsMainWindowOnStatusItemClick()
         } label: {

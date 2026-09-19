@@ -4,6 +4,7 @@ import Observation
 @Observable
 final class AppSettings {
     static let hideFromScreenCaptureKey = "hideFromScreenCapture"
+    static let alwaysOnTopKey = "alwaysOnTop"
     static let translateToLanguageCodesKey = "translateToLanguageCodes"
     static let visibleLanguageCodesKey = "visibleLanguageCodes"
     static let englishCode = TranslationLanguage.english.code
@@ -12,10 +13,21 @@ final class AppSettings {
         UserDefaults.standard.bool(forKey: hideFromScreenCaptureKey)
     }
 
+    static var alwaysOnTop: Bool {
+        UserDefaults.standard.bool(forKey: alwaysOnTopKey)
+    }
+
     var hideFromScreenCapture = false {
         didSet {
             defaults.set(hideFromScreenCapture, forKey: Self.hideFromScreenCaptureKey)
             ScreenCaptureStealth.apply(enabled: hideFromScreenCapture)
+        }
+    }
+
+    var alwaysOnTop = false {
+        didSet {
+            defaults.set(alwaysOnTop, forKey: Self.alwaysOnTopKey)
+            WindowAlwaysOnTop.apply(enabled: alwaysOnTop)
         }
     }
 
@@ -54,6 +66,7 @@ final class AppSettings {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         hideFromScreenCapture = defaults.bool(forKey: Self.hideFromScreenCaptureKey)
+        alwaysOnTop = defaults.bool(forKey: Self.alwaysOnTopKey)
         let targets = Self.sanitizedTargets(
             defaults.stringArray(forKey: Self.translateToLanguageCodesKey) ?? []
         )

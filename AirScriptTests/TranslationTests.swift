@@ -44,49 +44,6 @@ struct CaptionNotebookLayoutTests {
         #expect(segments[0].layers.map(\.text) == ["Hello, how are you doing?"])
         #expect(segments[1].layers.map(\.text) == ["Still talking"])
     }
-
-    @Test func copyMatchesVisibleNotebook() {
-        let lines = [
-            CaptionLine(text: "Hello, how are you doing?", isLive: false),
-            CaptionLine(text: "Good.", isLive: true),
-        ]
-        let text = CaptionNotebookText.grab(
-            from: lines,
-            count: 0,
-            showSource: true,
-            languages: [chinese],
-            translation: { source, _ in
-                source.hasPrefix("Hello") ? "你好吗？" : "好。"
-            }
-        )
-        #expect(
-            text == """
-            Hello, how are you doing?
-            你好吗？
-            Good.
-            好。
-            """
-        )
-    }
-
-    @Test func copyOmitsEnglishWhenToggledOff() {
-        let lines = [CaptionLine(text: "Hello, how are you doing? Good.", isLive: false)]
-        let text = CaptionNotebookText.grab(
-            from: lines,
-            count: 0,
-            showSource: false,
-            languages: [chinese],
-            translation: { source, _ in
-                source.hasPrefix("Hello") ? "你好吗？" : "好。"
-            }
-        )
-        #expect(
-            text == """
-            你好吗？
-            好。
-            """
-        )
-    }
 }
 
 struct GoogleGTXTranslatorTests {

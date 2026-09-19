@@ -7,10 +7,22 @@ struct SettingsView: View {
         @Bindable var settings = settings
         Form {
             Section {
+                Toggle(isOn: $settings.alwaysOnTop) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                        Text("Always on top")
+                        Text("Keep AirScript above other windows.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .toggleStyle(.switch)
+                .controlSize(.regular)
+
                 Toggle(isOn: $settings.hideFromScreenCapture) {
                     VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                        Text("Hide from screen recordings")
-                        Text("Windows stay on your screen, but screenshots, recordings, and screen sharing will not include them.")
+                        Text("Hide from recordings")
+                        Text("Visible on your display, hidden from screenshots and screen sharing.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -19,13 +31,14 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .controlSize(.regular)
             } header: {
-                Text("Stealth")
+                Text("Window")
             }
 
             TranslateToLanguagesSection(settings: settings)
         }
         .formStyle(.grouped)
-        .frame(minWidth: 420, idealWidth: 460, minHeight: 280)
+        .frame(width: 300)
+        .frame(minHeight: 340)
         .containerBackground(for: .window) {
             WindowGlassBackground()
         }
@@ -35,5 +48,5 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environment(AppSettings())
-        .frame(width: 460, height: 360)
+        .frame(width: 300, height: 400)
 }
