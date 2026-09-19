@@ -38,6 +38,11 @@ enum ScreenCaptureStealth {
 
     static func apply(enabled: Bool) {
         guard isAppReady else { return }
+        // Settings can be mutated off-main (tests, background tasks); NSWindow is main-only.
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { apply(enabled: enabled) }
+            return
+        }
         let sharing: NSWindow.SharingType = enabled ? .none : .readOnly
         for window in NSApp.windows {
             window.sharingType = sharing

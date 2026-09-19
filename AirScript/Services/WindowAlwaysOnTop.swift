@@ -35,6 +35,10 @@ enum WindowAlwaysOnTop {
 
     static func apply(enabled: Bool) {
         guard isAppReady else { return }
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { apply(enabled: enabled) }
+            return
+        }
         let level: NSWindow.Level = enabled ? .floating : .normal
         for window in NSApp.windows where !isStatusItem(window) {
             window.level = level
